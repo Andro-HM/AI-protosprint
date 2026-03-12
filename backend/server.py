@@ -13,9 +13,16 @@ from models import (
     Completion, CompletionCreate, JournalEntry, JournalEntryCreate, 
     JournalEntryUpdate, StreakInfo, StatsResponse, AIRequest, AIResponse
 )
+from models_extended import (
+    Friend, FriendRequest, FriendRequestCreate, SharedHabit, ShareHabitRequest,
+    NotificationPreference, NotificationPreferenceUpdate, HabitTemplate, HabitCategory,
+    BulkHabitCreate, ActivityItem
+)
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from streak_calculator import calculate_streaks
 from ai_service import ai_service
+from export_service import export_service
+from fastapi.responses import Response
 
 
 ROOT_DIR = Path(__file__).parent
@@ -31,6 +38,12 @@ users_collection = db.users
 habits_collection = db.habits
 completions_collection = db.completions
 journal_collection = db.journal_entries
+friends_collection = db.friends
+friend_requests_collection = db.friend_requests
+shared_habits_collection = db.shared_habits
+notifications_collection = db.notification_preferences
+templates_collection = db.habit_templates
+categories_collection = db.habit_categories
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -555,6 +568,350 @@ async def ai_chat(request: AIRequest, user_id: str = Depends(get_current_user)):
         return AIResponse(success=True, data=result)
     except Exception as e:
         return AIResponse(success=False, error=str(e))
+
+
+
+
+# ============= SOCIAL FEATURES ROUTES =============
+
+@api_router.get("/friends")
+async def get_friends(user_id: str = Depends(get_current_user)):
+    try:
+        # Get all friend relationships
+        friends = await friends_collection.find({"user_id": user_id}, {"_id": 0}).to_list(100)
+        
+        # Get friend details
+        friend_list = []
+        for friend in friends:
+            friend_user = await users_collection.find_one({"id": friend['friend_id']}, {"_id": 0, "id": 1, "name": 1, "email": 1})
+            if friend_user:
+                friend_list.append(friend_user)
+        
+        return {"success": True, "data": friend_list}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/friends/request")
+async def send_friend_request(request_data: FriendRequestCreate, user_id: str = Depends(get_current_user)):
+    try:
+        # Find user by email
+        target_user = await users_collection.find_one({"email": request_data.friend_email}, {"_id": 0})
+        if not target_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        if target_user['id'] == user_id:
+            raise HTTPException(status_code=400, detail="Cannot send friend request to yourself")
+        
+        # Check if already friends
+        existing = await friends_collection.find_one({
+            "$or": [
+                {"user_id": user_id, "friend_id": target_user['id']},
+                {"user_id": target_user['id'], "friend_id": user_id}
+            ]
+        }, {"_id": 0})
+        if existing:
+            raise HTTPException(status_code=400, detail="Already friends")
+        
+        # Check for pending request
+        pending = await friend_requests_collection.find_one({
+            "$or": [
+                {"from_user_id": user_id, "to_user_id": target_user['id'], "status": "pending"},
+                {"from_user_id": target_user['id'], "to_user_id": user_id, "status": "pending"}
+            ]
+        }, {"_id": 0})
+        if pending:
+            raise HTTPException(status_code=400, detail="Friend request already pending")
+        
+        # Create request
+        friend_request = FriendRequest(from_user_id=user_id, to_user_id=target_user['id'])
+        request_dict = friend_request.model_dump()
+        request_dict['created_at'] = request_dict['created_at'].isoformat()
+        await friend_requests_collection.insert_one(request_dict)
+        
+        return {"success": True, "data": request_dict}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/friends/requests")
+async def get_friend_requests(user_id: str = Depends(get_current_user)):
+    try:
+        requests = await friend_requests_collection.find({
+            "to_user_id": user_id,
+            "status": "pending"
+        }, {"_id": 0}).to_list(100)
+        
+        # Get sender details
+        for req in requests:
+            sender = await users_collection.find_one({"id": req['from_user_id']}, {"_id": 0, "id": 1, "name": 1, "email": 1})
+            req['sender'] = sender
+        
+        return {"success": True, "data": requests}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/friends/requests/{request_id}/accept")
+async def accept_friend_request(request_id: str, user_id: str = Depends(get_current_user)):
+    try:
+        request = await friend_requests_collection.find_one({"id": request_id, "to_user_id": user_id}, {"_id": 0})
+        if not request:
+            raise HTTPException(status_code=404, detail="Request not found")
+        
+        # Create friendship (both directions)
+        friend1 = Friend(user_id=user_id, friend_id=request['from_user_id'])
+        friend2 = Friend(user_id=request['from_user_id'], friend_id=user_id)
+        
+        friend1_dict = friend1.model_dump()
+        friend1_dict['created_at'] = friend1_dict['created_at'].isoformat()
+        friend2_dict = friend2.model_dump()
+        friend2_dict['created_at'] = friend2_dict['created_at'].isoformat()
+        
+        await friends_collection.insert_many([friend1_dict, friend2_dict])
+        
+        # Update request status
+        await friend_requests_collection.update_one(
+            {"id": request_id},
+            {"$set": {"status": "accepted"}}
+        )
+        
+        return {"success": True, "data": {"message": "Friend request accepted"}}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.delete("/friends/{friend_id}")
+async def remove_friend(friend_id: str, user_id: str = Depends(get_current_user)):
+    try:
+        # Remove both directions
+        await friends_collection.delete_many({
+            "$or": [
+                {"user_id": user_id, "friend_id": friend_id},
+                {"user_id": friend_id, "friend_id": user_id}
+            ]
+        })
+        return {"success": True, "data": {"message": "Friend removed"}}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/habits/share")
+async def share_habit(share_data: ShareHabitRequest, user_id: str = Depends(get_current_user)):
+    try:
+        # Verify habit belongs to user
+        habit = await habits_collection.find_one({"id": share_data.habit_id, "user_id": user_id}, {"_id": 0})
+        if not habit:
+            raise HTTPException(status_code=404, detail="Habit not found")
+        
+        # Find friend
+        friend = await users_collection.find_one({"email": share_data.friend_email}, {"_id": 0})
+        if not friend:
+            raise HTTPException(status_code=404, detail="Friend not found")
+        
+        # Create shared habit
+        shared = SharedHabit(
+            habit_id=share_data.habit_id,
+            shared_by_user_id=user_id,
+            shared_with_user_id=friend['id'],
+            message=share_data.message
+        )
+        shared_dict = shared.model_dump()
+        shared_dict['created_at'] = shared_dict['created_at'].isoformat()
+        await shared_habits_collection.insert_one(shared_dict)
+        
+        return {"success": True, "data": shared_dict}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/social/feed")
+async def get_activity_feed(user_id: str = Depends(get_current_user)):
+    try:
+        # Get friends
+        friends = await friends_collection.find({"user_id": user_id}, {"_id": 0}).to_list(100)
+        friend_ids = [f['friend_id'] for f in friends]
+        friend_ids.append(user_id)  # Include own activity
+        
+        # Get recent completions from friends
+        recent_date = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        completions = await completions_collection.find({
+            "user_id": {"$in": friend_ids},
+            "completed_date": {"$gte": recent_date}
+        }, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
+        
+        # Build activity feed
+        activities = []
+        for comp in completions:
+            user = await users_collection.find_one({"id": comp['user_id']}, {"_id": 0, "name": 1})
+            habit = await habits_collection.find_one({"id": comp['habit_id']}, {"_id": 0, "name": 1, "emoji": 1})
+            if user and habit:
+                activities.append({
+                    "user_name": user['name'],
+                    "activity_type": "completed_habit",
+                    "description": f"{habit['emoji']} {habit['name']}",
+                    "timestamp": comp['created_at']
+                })
+        
+        return {"success": True, "data": activities[:20]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============= NOTIFICATIONS ROUTES =============
+
+@api_router.get("/notifications/preferences")
+async def get_notification_preferences(user_id: str = Depends(get_current_user)):
+    try:
+        prefs = await notifications_collection.find_one({"user_id": user_id}, {"_id": 0})
+        if not prefs:
+            # Create default preferences
+            default_prefs = NotificationPreference(user_id=user_id)
+            prefs_dict = default_prefs.model_dump()
+            prefs_dict['updated_at'] = prefs_dict['updated_at'].isoformat()
+            await notifications_collection.insert_one(prefs_dict)
+            prefs = prefs_dict
+        return {"success": True, "data": prefs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.put("/notifications/preferences")
+async def update_notification_preferences(prefs_data: NotificationPreferenceUpdate, user_id: str = Depends(get_current_user)):
+    try:
+        update_data = {k: v for k, v in prefs_data.model_dump().items() if v is not None}
+        if update_data:
+            update_data['updated_at'] = datetime.utcnow().isoformat()
+            await notifications_collection.update_one(
+                {"user_id": user_id},
+                {"$set": update_data},
+                upsert=True
+            )
+        
+        updated = await notifications_collection.find_one({"user_id": user_id}, {"_id": 0})
+        return {"success": True, "data": updated}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============= EXPORT ROUTES =============
+
+@api_router.get("/export/habits/csv")
+async def export_habits_csv(user_id: str = Depends(get_current_user)):
+    try:
+        habits = await habits_collection.find({"user_id": user_id}, {"_id": 0}).to_list(100)
+        completions = await completions_collection.find({"user_id": user_id}, {"_id": 0}).to_list(1000)
+        
+        csv_data = export_service.generate_habits_csv(habits, completions)
+        
+        return Response(
+            content=csv_data,
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=habits.csv"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/export/habits/pdf")
+async def export_habits_pdf(user_id: str = Depends(get_current_user)):
+    try:
+        user = await users_collection.find_one({"id": user_id}, {"_id": 0})
+        habits = await habits_collection.find({"user_id": user_id}, {"_id": 0}).to_list(100)
+        completions = await completions_collection.find({"user_id": user_id}, {"_id": 0}).to_list(1000)
+        
+        pdf_data = export_service.generate_habits_pdf(habits, completions, user['name'])
+        
+        return Response(
+            content=pdf_data,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=habits.pdf"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/export/journal/csv")
+async def export_journal_csv(user_id: str = Depends(get_current_user)):
+    try:
+        entries = await journal_collection.find({"user_id": user_id}, {"_id": 0}).sort("entry_date", -1).to_list(1000)
+        
+        csv_data = export_service.generate_journal_csv(entries)
+        
+        return Response(
+            content=csv_data,
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=journal.csv"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/export/journal/pdf")
+async def export_journal_pdf(user_id: str = Depends(get_current_user)):
+    try:
+        user = await users_collection.find_one({"id": user_id}, {"_id": 0})
+        entries = await journal_collection.find({"user_id": user_id}, {"_id": 0}).sort("entry_date", -1).to_list(1000)
+        
+        pdf_data = export_service.generate_journal_pdf(entries, user['name'])
+        
+        return Response(
+            content=pdf_data,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=journal.pdf"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============= TEMPLATES & CATEGORIES ROUTES =============
+
+@api_router.get("/categories")
+async def get_categories(user_id: str = Depends(get_current_user)):
+    try:
+        categories = await categories_collection.find({}, {"_id": 0}).to_list(100)
+        return {"success": True, "data": categories}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/templates")
+async def get_templates(category_id: Optional[str] = None, user_id: str = Depends(get_current_user)):
+    try:
+        query = {"category_id": category_id} if category_id else {}
+        templates = await templates_collection.find(query, {"_id": 0}).to_list(100)
+        return {"success": True, "data": templates}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/habits/bulk")
+async def create_habits_from_templates(bulk_data: BulkHabitCreate, user_id: str = Depends(get_current_user)):
+    try:
+        created_habits = []
+        for template_id in bulk_data.template_ids:
+            template = await templates_collection.find_one({"id": template_id}, {"_id": 0})
+            if template:
+                habit = Habit(
+                    user_id=user_id,
+                    name=template['name'],
+                    emoji=template['emoji'],
+                    color=template['color']
+                )
+                habit_dict = habit.model_dump()
+                habit_dict['created_at'] = habit_dict['created_at'].isoformat()
+                await habits_collection.insert_one(habit_dict)
+                created_habits.append(habit_dict)
+        
+        return {"success": True, "data": created_habits}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Include the router in the main app

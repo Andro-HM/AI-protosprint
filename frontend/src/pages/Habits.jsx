@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Sparkles } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
@@ -19,6 +20,10 @@ export const Habits = () => {
   const [habits, setHabits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplates, setSelectedTemplates] = useState([]);
   const [editingHabit, setEditingHabit] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -28,7 +33,21 @@ export const Habits = () => {
 
   useEffect(() => {
     fetchHabits();
+    fetchTemplates();
   }, []);
+
+  const fetchTemplates = async () => {
+    try {
+      const [catsRes, tmplsRes] = await Promise.all([
+        axios.get(`${API}/categories`),
+        axios.get(`${API}/templates`),
+      ]);
+      setCategories(catsRes.data.data);
+      setTemplates(tmplsRes.data.data);
+    } catch (error) {
+      console.error('Failed to load templates');
+    }
+  };
 
   const fetchHabits = async () => {
     try {
@@ -118,20 +137,109 @@ export const Habits = () => {
               Manage and track your daily routines
             </p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={(open) => {
-            setDialogOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button
-                size="lg"
-                data-testid="create-habit-button"
-                className="h-12"
-              >
-                <Plus className="mr-2 h-5 w-5" />
-                New Habit
-              </Button>
-            </DialogTrigger>
+          <div className="flex space-x-3">
+            <Dialog open={templatesDialogOpen} onOpenChange={setTemplatesDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  data-testid="browse-templates-button"
+                  className="h-12"
+                >
+                  <Sparkles className="mr-2 h-5 w-5" />
+                  Browse Templates
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Habit Templates</DialogTitle>
+                </DialogHeader>
+                <Tabs defaultValue={categories[0]?.id} className="w-full">
+                  <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${categories.length}, minmax(0, 1fr))` }}>
+                    {categories.map((cat) => (
+                      <TabsTrigger key={cat.id} value={cat.id}>
+                        {cat.icon} {cat.name}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  {categories.map((cat) => (
+                    <TabsContent key={cat.id} value={cat.id} className="mt-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {templates
+                          .filter((t) => t.category_id === cat.id)
+                          .map((template) => (
+                            <div
+                              key={template.id}
+                              onClick={() => {
+                                if (selectedTemplates.includes(template.id)) {
+                                  setSelectedTemplates(selectedTemplates.filter(id => id !== template.id));
+                                } else {
+                                  setSelectedTemplates([...selectedTemplates, template.id]);
+                                }
+                              }}
+                              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                                selectedTemplates.includes(template.id)
+                                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                                  : 'border-slate-200 dark:border-slate-800 hover:border-emerald-300'
+                              }`}
+                            >
+                              <div className="flex items-start space-x-3">
+                                <span className="text-3xl">{template.emoji}</span>
+                                <div className="flex-1">
+                                  <p className="font-medium text-slate-900 dark:text-slate-100">
+                                    {template.name}
+                                  </p>
+                                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    {template.description}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </TabsContent>
+                  ))}
+                </Tabs>
+                <div className="flex justify-end space-x-2 mt-4">
+                  <Button variant="outline" onClick={() => setTemplatesDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        await axios.post(`${API}/habits/bulk`, {
+                          template_ids: selectedTemplates,
+                        });
+                        toast.success(`Added ${selectedTemplates.length} habits!`);
+                        setSelectedTemplates([]);
+                        setTemplatesDialogOpen(false);
+                        fetchHabits();
+                      } catch (error) {
+                        toast.error('Failed to add habits');
+                      }
+                    }}
+                    disabled={selectedTemplates.length === 0}
+                  >
+                    Add {selectedTemplates.length} Habit{selectedTemplates.length !== 1 ? 's' : ''}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+            <Dialog open={dialogOpen} onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open) resetForm();
+            }}>
+              <DialogTrigger asChild>
+                <Button
+                  size="lg"
+                  data-testid="create-habit-button"
+                  className="h-12"
+                >
+                  <Plus className="mr-2 h-5 w-5" />
+                  New Habit
+                </Button>
+              </DialogTrigger>
             <DialogContent data-testid="habit-dialog">
               <DialogHeader>
                 <DialogTitle>{editingHabit ? 'Edit Habit' : 'Create New Habit'}</DialogTitle>
