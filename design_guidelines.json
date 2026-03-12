@@ -1,0 +1,165 @@
+{
+  "project_name": "DailyRoutine",
+  "design_philosophy": {
+    "theme": "Zen Momentum",
+    "core_concept": "Evolved Minimalism with Organic Play",
+    "mood": "Calming, Motivating, Tactile",
+    "archetype": "Organic & Earthy (Growth) + Vibrant Play (Dopamine)",
+    "light_mode_default": true,
+    "dark_mode_support": true
+  },
+  "typography": {
+    "font_family_headings": "Outfit, sans-serif",
+    "font_family_body": "DM Sans, sans-serif",
+    "font_family_journal": "Libre Baskerville, serif",
+    "google_fonts_import": "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap",
+    "usage_rules": {
+      "h1": "font-heading text-4xl md:text-5xl font-bold tracking-tight text-slate-900 dark:text-slate-50",
+      "h2": "font-heading text-3xl font-semibold tracking-tight text-slate-800 dark:text-slate-100",
+      "h3": "font-heading text-2xl font-medium text-slate-800 dark:text-slate-200",
+      "body": "font-body text-base text-slate-600 dark:text-slate-400 relaxed",
+      "journal_entry": "font-journal text-lg leading-loose text-slate-800 dark:text-slate-200"
+    }
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "name": "Emerald Growth",
+        "tailwind": "emerald",
+        "hex": "#059669",
+        "usage": "Primary Buttons, Success States, Habit Completion"
+      },
+      "secondary": {
+        "name": "Violet Reflection",
+        "tailwind": "violet",
+        "hex": "#8b5cf6",
+        "usage": "Journal Accents, AI Insights, Gradient Stops"
+      },
+      "accent_warm": {
+        "name": "Amber Fire",
+        "tailwind": "amber",
+        "hex": "#f59e0b",
+        "usage": "Streaks, Awards, Warning"
+      },
+      "accent_cool": {
+        "name": "Sky Calm",
+        "tailwind": "sky",
+        "hex": "#38bdf8",
+        "usage": "Info, Neutral Moods, Water Habits"
+      },
+      "background": {
+        "light": "#f8fafc",
+        "dark": "#020617"
+      },
+      "surface": {
+        "light": "#ffffff",
+        "dark": "#0f172a"
+      }
+    },
+    "tailwind_config_extension": {
+      "colors": {
+        "brand": {
+          "50": "#ecfdf5",
+          "100": "#d1fae5",
+          "500": "#10b981",
+          "600": "#059669",
+          "700": "#047857"
+        },
+        "journal": {
+          "50": "#f5f3ff",
+          "500": "#8b5cf6"
+        }
+      }
+    }
+  },
+  "layout_strategy": {
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "dashboard_grid": {
+      "type": "Bento Grid",
+      "classes": "grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-6",
+      "hero_tile": "col-span-1 md:col-span-4 lg:col-span-4 row-span-2",
+      "stat_tile": "col-span-1 md:col-span-2 lg:col-span-2",
+      "tall_tile": "col-span-1 md:col-span-2 lg:col-span-2 row-span-2"
+    },
+    "spacing": {
+      "section_gap": "gap-8 md:gap-12",
+      "internal_padding": "p-6 md:p-8"
+    }
+  },
+  "component_styling": {
+    "global_radius": "rounded-2xl",
+    "cards": {
+      "base": "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300",
+      "interactive": "hover:-translate-y-1 hover:border-emerald-500/50 cursor-pointer"
+    },
+    "buttons": {
+      "primary": "bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-50 dark:text-slate-900 dark:hover:bg-slate-200 shadow-lg shadow-slate-900/20 transition-all active:scale-95",
+      "secondary": "bg-white text-slate-900 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-800 transition-all",
+      "ghost": "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+    },
+    "inputs": {
+      "base": "h-12 rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+    }
+  },
+  "visual_enhancers": {
+    "gradients": {
+      "hero_text": "bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-500",
+      "active_border": "bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500"
+    },
+    "glassmorphism": {
+      "nav": "bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/50",
+      "overlay": "bg-white/60 dark:bg-black/60 backdrop-blur-sm"
+    },
+    "micro_interactions": {
+      "habit_check": "Scale up to 1.1 then back to 1.0 on click. Show confetti.",
+      "streak_fire": "Pulse animation on hover."
+    }
+  },
+  "assets": {
+    "images": [
+      {
+        "category": "auth_hero",
+        "url": "https://images.unsplash.com/photo-1764377725269-a26ada9b551a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwxfHxwZXJzb24lMjBoaWtpbmclMjBtb3VudGFpbiUyMHBlYWslMjBzdWNjZXNzfGVufDB8fHx8MTc3MzM1NDIwOHww&ixlib=rb-4.1.0&q=85",
+        "description": "Hiker on mountain peak at sunrise - symbolizes success and journey",
+        "usage": "Login/Signup page side image"
+      },
+      {
+        "category": "journal_empty",
+        "url": "https://images.unsplash.com/photo-1589221475596-7133b597dc21?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwzfHxjYWxtJTIwbW9ybmluZyUyMGNvZmZlZSUyMGpvdXJuYWx8ZW58MHx8fHwxNzczMzU0MjA3fDA&ixlib=rb-4.1.0&q=85",
+        "description": "White paper beside coffee mug - symbolizes calm writing start",
+        "usage": "Empty state for Journal page"
+      }
+    ],
+    "icons": {
+      "library": "lucide-react",
+      "style": "Stroke width 1.5px (Fine) or 2px (Standard)",
+      "usage": {
+        "nav": "Home, BookOpen, CheckCircle, BarChart2, Sparkles",
+        "actions": "Plus, Trash2, Edit3, MoreHorizontal",
+        "feedback": "Check, X, AlertCircle"
+      }
+    }
+  },
+  "libraries": {
+    "charts": "recharts (via Shadcn Charts)",
+    "calendar": "react-day-picker (via Shadcn Calendar)",
+    "animations": "framer-motion",
+    "dates": "date-fns",
+    "toast": "sonner"
+  },
+  "universal_guidelines": [
+    "Do NOT use gradients for dark colors. Use solid slate-900 or slate-950.",
+    "Do NOT center align the entire app. Use left align for content, center only for hero text.",
+    "Use 'rounded-2xl' for containers and 'rounded-xl' for inner elements.",
+    "Ensure 2-3x padding. If you think 'p-4' is enough, use 'p-8'.",
+    "Interactive elements must have a hover state that changes color or scale.",
+    "Use data-testid attributes for all interactive elements."
+  ],
+  "instructions_to_main_agent": {
+    "step_1": "Update index.css with the provided fonts and color variables.",
+    "step_2": "Install required packages: framer-motion, lucide-react, date-fns, recharts, sonner.",
+    "step_3": "Customize the tailwind.config.js to extend the font families and colors.",
+    "step_4": "Build the Layout component with the glassmorphic sidebar/navbar.",
+    "step_5": "Implement the Dashboard using the Bento Grid strategy."
+  }
+}
