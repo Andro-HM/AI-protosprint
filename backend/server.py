@@ -445,6 +445,8 @@ async def get_journal_by_date(entry_date: str, user_id: str = Depends(get_curren
 @api_router.post("/journal")
 async def create_journal_entry(entry_data: JournalEntryCreate, user_id: str = Depends(get_current_user)):
     try:
+        from mood_utils import normalize_mood
+        
         entry_date = entry_data.entry_date or date.today()
         
         # Check if entry already exists for this date
@@ -456,10 +458,13 @@ async def create_journal_entry(entry_data: JournalEntryCreate, user_id: str = De
         if existing:
             raise HTTPException(status_code=400, detail="Entry already exists for this date")
         
+        # Normalize mood to standard format
+        standardized_mood = normalize_mood(entry_data.mood)
+        
         entry_dict = JournalEntry(
             user_id=user_id,
             content=entry_data.content,
-            mood=entry_data.mood,
+            mood=standardized_mood,  # Use standardized mood
             entry_date=entry_date
         ).model_dump()
         
@@ -503,6 +508,8 @@ async def analyze_entry_background(entry_id: str, content: str):
 @api_router.put("/journal/{entry_id}")
 async def update_journal_entry(entry_id: str, entry_data: JournalEntryUpdate, user_id: str = Depends(get_current_user)):
     try:
+        from mood_utils import normalize_mood
+        
         entry = await journal_collection.find_one(
             {"id": entry_id, "user_id": user_id},
             {"_id": 0}
@@ -511,6 +518,11 @@ async def update_journal_entry(entry_id: str, entry_data: JournalEntryUpdate, us
             raise HTTPException(status_code=404, detail="Journal entry not found")
         
         update_data = {k: v for k, v in entry_data.model_dump().items() if v is not None}
+        
+        # Normalize mood if provided
+        if 'mood' in update_data and update_data['mood']:
+            update_data['mood'] = normalize_mood(update_data['mood'])
+        
         if update_data:
             update_data['updated_at'] = datetime.utcnow().isoformat()
             await journal_collection.update_one({"id": entry_id}, {"$set": update_data})
