@@ -4,13 +4,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import axios from 'axios';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [sendingReset, setSendingReset] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -27,6 +34,25 @@ export const Login = () => {
       navigate('/dashboard');
     } else {
       toast.error(result.error);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setSendingReset(true);
+    
+    try {
+      await axios.post(`${API}/auth/forgot-password`, {
+        email: resetEmail,
+      });
+      
+      toast.success('Password reset link sent! Check your console logs (email is mocked).');
+      setForgotPasswordOpen(false);
+      setResetEmail('');
+    } catch (error) {
+      toast.error('Failed to send reset link');
+    } finally {
+      setSendingReset(false);
     }
   };
 
@@ -62,7 +88,58 @@ export const Login = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between mb-1">
+                  <Label htmlFor="password">Password</Label>
+                  <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
+                    <DialogTrigger asChild>
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"
+                        data-testid="forgot-password-link"
+                      >
+                        Forgot password?
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Reset Password</DialogTitle>
+                      </DialogHeader>
+                      <form onSubmit={handleForgotPassword} className="space-y-4">
+                        <div>
+                          <Label htmlFor="reset-email">Email address</Label>
+                          <Input
+                            id="reset-email"
+                            type="email"
+                            required
+                            value={resetEmail}
+                            onChange={(e) => setResetEmail(e.target.value)}
+                            placeholder="Enter your email"
+                            data-testid="reset-email-input"
+                            className="mt-1"
+                          />
+                          <p className="text-xs text-slate-500 mt-2">
+                            We'll send you a link to reset your password
+                          </p>
+                        </div>
+                        <Button
+                          type="submit"
+                          disabled={sendingReset}
+                          className="w-full"
+                          data-testid="send-reset-link"
+                        >
+                          {sendingReset ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            'Send Reset Link'
+                          )}
+                        </Button>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
                 <Input
                   id="password"
                   name="password"

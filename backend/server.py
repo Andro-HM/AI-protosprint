@@ -16,12 +16,13 @@ from models import (
 from models_extended import (
     Friend, FriendRequest, FriendRequestCreate, SharedHabit, ShareHabitRequest,
     NotificationPreference, NotificationPreferenceUpdate, HabitTemplate, HabitCategory,
-    BulkHabitCreate, ActivityItem
+    BulkHabitCreate, ActivityItem, PasswordResetToken, ForgotPasswordRequest, ResetPasswordRequest
 )
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from streak_calculator import calculate_streaks
 from ai_service import ai_service
 from export_service import export_service
+from password_reset_service import password_reset_service
 from fastapi.responses import Response
 
 
@@ -44,6 +45,7 @@ shared_habits_collection = db.shared_habits
 notifications_collection = db.notification_preferences
 templates_collection = db.habit_templates
 categories_collection = db.habit_categories
+reset_tokens_collection = db.password_reset_tokens
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -125,6 +127,70 @@ async def get_me(user_id: str = Depends(get_current_user)):
 @api_router.post("/auth/logout")
 async def logout(user_id: str = Depends(get_current_user)):
     return {"success": True, "data": {"message": "Logged out successfully"}}
+
+
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest):
+    try:
+        # Find user by email
+        user = await users_collection.find_one({"email": request.email}, {"_id": 0})
+        if not user:
+            # Don't reveal if email exists or not for security
+            return {"success": True, "data": {"message": "If the email exists, a reset link has been sent"}}
+        
+        # Generate reset token
+        token = password_reset_service.generate_reset_token()
+        
+        # Save token to database
+        reset_token = PasswordResetToken(user_id=user['id'], token=token)
+        token_dict = reset_token.model_dump()
+        token_dict['created_at'] = token_dict['created_at'].isoformat()
+        await reset_tokens_collection.insert_one(token_dict)
+        
+        # Send reset email (mock for now)
+        frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+        await password_reset_service.send_reset_email(request.email, token, frontend_url)
+        
+        return {"success": True, "data": {"message": "If the email exists, a reset link has been sent"}}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/auth/reset-password")
+async def reset_password(request: ResetPasswordRequest):
+    try:
+        # Find token
+        token_doc = await reset_tokens_collection.find_one(
+            {"token": request.token, "used": False},
+            {"_id": 0}
+        )
+        if not token_doc:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+        
+        # Check if token is expired (1 hour)
+        created_at = datetime.fromisoformat(token_doc['created_at'])
+        if password_reset_service.is_token_expired(created_at):
+            raise HTTPException(status_code=400, detail="Reset token has expired")
+        
+        # Update user password
+        new_hashed_password = hash_password(request.new_password)
+        await users_collection.update_one(
+            {"id": token_doc['user_id']},
+            {"$set": {"hashed_password": new_hashed_password}}
+        )
+        
+        # Mark token as used
+        await reset_tokens_collection.update_one(
+            {"token": request.token},
+            {"$set": {"used": True}}
+        )
+        
+        return {"success": True, "data": {"message": "Password reset successfully"}}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============= HABITS ROUTES =============

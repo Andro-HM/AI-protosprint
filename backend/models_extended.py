@@ -103,3 +103,24 @@ class HabitTemplate(BaseModel):
 
 class BulkHabitCreate(BaseModel):
     template_ids: List[str]
+
+
+# ============= PASSWORD RESET =============
+
+class PasswordResetToken(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    token: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    used: bool = False
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
