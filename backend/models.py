@@ -50,6 +50,8 @@ class Habit(BaseModel):
     emoji: str
     color: str
     is_active: bool = True
+    requires_proof: bool = False  # NEW: Proof of Work feature
+    proof_description: Optional[str] = None  # NEW: What counts as valid proof
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -66,6 +68,15 @@ class Completion(BaseModel):
     user_id: str
     completed_date: date
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    # Proof of Work fields
+    proof_image_url: Optional[str] = None
+    proof_image_base64: Optional[str] = None
+    verification_status: str = "approved"  # pending/approved/rejected
+    verification_message: Optional[str] = None
+    verification_score: Optional[int] = None
+    verified_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+    is_manual_override: bool = False
 
 
 class JournalEntryCreate(BaseModel):
