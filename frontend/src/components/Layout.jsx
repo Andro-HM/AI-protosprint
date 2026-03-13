@@ -1,16 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Home, BookOpen, CheckCircle2, BarChart2, Sparkles, LogOut, Users, Settings as SettingsIcon, Brain } from 'lucide-react';
+import { Home, BookOpen, CheckCircle2, BarChart2, Sparkles, LogOut, Users, Settings as SettingsIcon, Brain, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AccountabilityBell } from '@/components/Accountability/AccountabilityBell';
+import { AccountabilityModal } from '@/components/Accountability/AccountabilityModal';
 
 export const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [modalMessages, setModalMessages] = useState([]);
+  const [showModal, setShowModal] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+  
+  const handleBellMessageClick = (message) => {
+    setModalMessages([message]);
+    setShowModal(true);
+  };
+  
+  const handleResolveHabit = (habitId) => {
+    // Navigate to habits page to complete the habit
+    navigate('/habits');
   };
 
   const navItems = [
@@ -21,6 +35,7 @@ export const Layout = ({ children }) => {
     { to: '/stats', icon: BarChart2, label: 'Stats' },
     { to: '/friends', icon: Users, label: 'Friends' },
     { to: '/ai-assistant', icon: Sparkles, label: 'AI Assistant' },
+    { to: '/accountability', icon: AlertTriangle, label: 'Accountability' },
     { to: '/settings', icon: SettingsIcon, label: 'Settings' },
   ];
 
@@ -54,6 +69,7 @@ export const Layout = ({ children }) => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <AccountabilityBell onMessageClick={handleBellMessageClick} />
               <span className="text-sm text-slate-600 dark:text-slate-400">
                 {user?.name}
               </span>
@@ -75,6 +91,15 @@ export const Layout = ({ children }) => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
+      
+      {/* Accountability Modal */}
+      {showModal && (
+        <AccountabilityModal
+          messages={modalMessages}
+          onClose={() => setShowModal(false)}
+          onResolve={handleResolveHabit}
+        />
+      )}
     </div>
   );
 };

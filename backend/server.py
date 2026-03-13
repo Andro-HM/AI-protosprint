@@ -46,6 +46,8 @@ notifications_collection = db.notification_preferences
 templates_collection = db.habit_templates
 categories_collection = db.habit_categories
 reset_tokens_collection = db.password_reset_tokens
+accountability_messages_collection = db.accountability_messages
+agent_logs_collection = db.agent_logs
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -1185,6 +1187,194 @@ async def create_habits_from_templates(bulk_data: BulkHabitCreate, user_id: str 
                 created_habits.append(habit_dict)
         
         return {"success": True, "data": created_habits}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============= ACCOUNTABILITY COACH ROUTES =============
+
+@api_router.post("/accountability/check")
+async def trigger_accountability_check(user_id: str = Depends(get_current_user)):
+    """Trigger full agent check for current user"""
+    try:
+        from agents.agent_orchestrator import run_accountability_check
+        
+        result = await run_accountability_check(user_id, db, ai_service)
+        
+        return {
+            "success": True,
+            "data": {
+                "messages": result.get('messages', []),
+                "broken_streaks": result.get('broken_streaks', [])
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/accountability/messages")
+async def get_accountability_messages(user_id: str = Depends(get_current_user)):
+    """Get all unread accountability messages"""
+    try:
+        messages = await db.accountability_messages.find({
+            "user_id": user_id,
+            "is_read": False
+        }, {"_id": 0}).sort("created_at", -1).to_list(100)
+        
+        return {"success": True, "data": messages}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/accountability/messages/all")
+async def get_all_accountability_messages(
+    page: int = 1,
+    limit: int = 10,
+    user_id: str = Depends(get_current_user)
+):
+    """Get all accountability messages with pagination"""
+    try:
+        skip = (page - 1) * limit
+        
+        messages = await db.accountability_messages.find({
+            "user_id": user_id
+        }, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+        
+        total = await db.accountability_messages.count_documents({"user_id": user_id})
+        
+        return {
+            "success": True,
+            "data": {
+                "messages": messages,
+                "total": total,
+                "page": page,
+                "pages": (total + limit - 1) // limit
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.patch("/accountability/messages/{message_id}/read")
+async def mark_message_read(message_id: str, user_id: str = Depends(get_current_user)):
+    """Mark message as read"""
+    try:
+        result = await db.accountability_messages.update_one(
+            {"id": message_id, "user_id": user_id},
+            {"$set": {"is_read": True}}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        updated = await db.accountability_messages.find_one({"id": message_id}, {"_id": 0})
+        return {"success": True, "data": updated}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.patch("/accountability/messages/{message_id}/dismiss")
+async def dismiss_message(message_id: str, user_id: str = Depends(get_current_user)):
+    """Mark message as dismissed"""
+    try:
+        result = await db.accountability_messages.update_one(
+            {"id": message_id, "user_id": user_id},
+            {"$set": {"is_dismissed": True, "is_read": True}}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        updated = await db.accountability_messages.find_one({"id": message_id}, {"_id": 0})
+        return {"success": True, "data": updated}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.patch("/accountability/messages/{message_id}/resolve")
+async def resolve_message(message_id: str, user_id: str = Depends(get_current_user)):
+    """Mark message as resolved (habit completed after message)"""
+    try:
+        result = await db.accountability_messages.update_one(
+            {"id": message_id, "user_id": user_id},
+            {"$set": {
+                "is_resolved": True,
+                "is_read": True,
+                "resolved_at": datetime.utcnow().isoformat()
+            }}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        updated = await db.accountability_messages.find_one({"id": message_id}, {"_id": 0})
+        return {"success": True, "data": updated}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.delete("/accountability/messages/{message_id}")
+async def delete_accountability_message(message_id: str, user_id: str = Depends(get_current_user)):
+    """Delete an accountability message"""
+    try:
+        result = await db.accountability_messages.delete_one({
+            "id": message_id,
+            "user_id": user_id
+        })
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        return {"success": True, "data": {"message": "Message deleted"}}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/accountability/stats")
+async def get_accountability_stats(user_id: str = Depends(get_current_user)):
+    """Get accountability statistics"""
+    try:
+        total_messages = await db.accountability_messages.count_documents({"user_id": user_id})
+        unread_count = await db.accountability_messages.count_documents({
+            "user_id": user_id,
+            "is_read": False
+        })
+        resolved_count = await db.accountability_messages.count_documents({
+            "user_id": user_id,
+            "is_resolved": True
+        })
+        
+        # Find most broken habit
+        pipeline = [
+            {"$match": {"user_id": user_id}},
+            {"$group": {
+                "_id": "$habit_name",
+                "count": {"$sum": 1}
+            }},
+            {"$sort": {"count": -1}},
+            {"$limit": 1}
+        ]
+        
+        most_broken = await db.accountability_messages.aggregate(pipeline).to_list(1)
+        most_broken_habit = most_broken[0]["_id"] if most_broken else None
+        
+        return {
+            "success": True,
+            "data": {
+                "total_messages": total_messages,
+                "unread_count": unread_count,
+                "resolved_count": resolved_count,
+                "most_broken_habit": most_broken_habit
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

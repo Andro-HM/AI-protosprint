@@ -124,3 +124,36 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
+
+
+# ============= ACCOUNTABILITY COACH =============
+
+class AccountabilityMessage(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    habit_id: str
+    habit_name: str
+    message: str  # The AI generated message
+    agent_reasoning: str  # Why agent chose this angle
+    journal_reference: Optional[str] = None  # The journal excerpt used
+    streak_broken_days: int
+    previous_streak_length: int
+    is_read: bool = False
+    is_dismissed: bool = False
+    is_resolved: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    resolved_at: Optional[datetime] = None
+
+
+class AgentLog(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    agent_name: str  # "Auditor" or "Enforcer"
+    user_id: str
+    action: str  # BROKEN_STREAK_DETECTED, MESSAGE_GENERATED, etc.
+    payload: dict
+    status: str  # success/failed
+    created_at: datetime = Field(default_factory=datetime.utcnow)

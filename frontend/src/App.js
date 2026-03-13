@@ -13,6 +13,7 @@ import { AIAssistant } from '@/pages/AIAssistant';
 import { EmotionalDashboard } from '@/pages/EmotionalDashboard';
 import { Friends } from '@/pages/Friends';
 import { Settings } from '@/pages/Settings';
+import AccountabilityPage from '@/pages/AccountabilityPage';
 import { Toaster } from '@/components/ui/sonner';
 import '@/App.css';
 
@@ -32,6 +33,7 @@ function App() {
             <Route path="/stats" element={<Stats />} />
             <Route path="/friends" element={<Friends />} />
             <Route path="/ai-assistant" element={<AIAssistant />} />
+            <Route path="/accountability" element={<AccountabilityPage />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
