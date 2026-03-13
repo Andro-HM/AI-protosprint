@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, CheckCircle, Eye, EyeOff, Loader2, Activity } from 'lucide-react';
+import { Layout } from '@/components/Layout';
+import { AlertTriangle, CheckCircle, Loader2, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import axios from 'axios';
@@ -106,14 +108,17 @@ export const AccountabilityPage = () => {
   
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-      </div>
+      <Layout>
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+        </div>
+      </Layout>
     );
   }
   
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <Layout>
+      <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -147,30 +152,30 @@ export const AccountabilityPage = () => {
       {/* Stats Row */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+          <Card className="p-4">
             <p className="text-sm text-slate-600 dark:text-slate-400">Total Messages</p>
             <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
-              {stats.total_messages}
+              {stats.total_messages || 0}
             </p>
-          </div>
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+          </Card>
+          <Card className="p-4">
             <p className="text-sm text-slate-600 dark:text-slate-400">Habits Redeemed</p>
             <p className="text-2xl font-bold text-emerald-600 mt-1">
-              {stats.resolved_count}
+              {stats.resolved_count || 0}
             </p>
-          </div>
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+          </Card>
+          <Card className="p-4">
             <p className="text-sm text-slate-600 dark:text-slate-400">Unread</p>
             <p className="text-2xl font-bold text-red-600 mt-1">
-              {stats.unread_count}
+              {stats.unread_count || 0}
             </p>
-          </div>
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+          </Card>
+          <Card className="p-4">
             <p className="text-sm text-slate-600 dark:text-slate-400">Most Broken</p>
             <p className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1 truncate">
               {stats.most_broken_habit || 'None'}
             </p>
-          </div>
+          </Card>
         </div>
       )}
       
@@ -205,9 +210,9 @@ export const AccountabilityPage = () => {
       ) : (
         <div className="space-y-4">
           {filteredMessages.map((message) => (
-            <div
+            <Card
               key={message.id}
-              className={`bg-white dark:bg-slate-900 p-6 rounded-xl border-l-4 shadow-sm ${
+              className={`p-6 border-l-4 ${
                 !message.is_read
                   ? 'border-red-500'
                   : message.is_resolved
@@ -286,11 +291,12 @@ export const AccountabilityPage = () => {
                   )}
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
     </div>
+    </Layout>
   );
 };
 
