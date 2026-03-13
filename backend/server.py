@@ -54,6 +54,27 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
+# ============= HEALTH CHECK ROUTE =============
+
+@api_router.get("/health")
+async def health_check():
+    """Health check endpoint to verify server is running"""
+    try:
+        # Test database connection
+        await db.command('ping')
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "message": "Backend server is running properly"
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e)
+        }
+
+
 # ============= AUTH ROUTES =============
 
 @api_router.post("/auth/signup")
