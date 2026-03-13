@@ -35,7 +35,7 @@ export const Layout = ({ children }) => {
     { to: '/stats', icon: BarChart2, label: 'Stats' },
     { to: '/friends', icon: Users, label: 'Friends' },
     { to: '/ai-assistant', icon: Sparkles, label: 'AI Assistant' },
-    { to: '/accountability', icon: AlertTriangle, label: 'Accountability' },
+    { to: '/accountability', icon: AlertTriangle, label: '⚠️ Coach' },
     { to: '/settings', icon: SettingsIcon, label: 'Settings' },
   ];
 
@@ -88,9 +88,36 @@ export const Layout = ({ children }) => {
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 md:pb-8">
         {children}
       </main>
+      
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-t border-slate-200/50 dark:border-slate-800/50">
+        <div className="flex items-center justify-around px-2 py-3">
+          {[
+            { to: '/dashboard', icon: Home },
+            { to: '/habits', icon: CheckCircle2 },
+            { to: '/journal', icon: BookOpen },
+            { to: '/accountability', icon: AlertTriangle },
+            { to: '/settings', icon: SettingsIcon },
+          ].map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                  isActive
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`
+              }
+            >
+              <item.icon className="h-6 w-6" strokeWidth={1.5} />
+            </NavLink>
+          ))}
+        </div>
+      </nav>
       
       {/* Accountability Modal */}
       {showModal && (

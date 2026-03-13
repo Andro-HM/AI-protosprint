@@ -19,17 +19,29 @@ def calculate_streak(completions: List[dict]) -> int:
         reverse=True
     )
     
-    streak = 0
-    expected_date = date.today()
+    # Start from the most recent completion, not from today
+    # This calculates the PREVIOUS streak (before it was broken)
+    if not sorted_completions:
+        return 0
     
-    for completion in sorted_completions:
+    streak = 1  # Start with 1 for the first completion
+    current_comp = sorted_completions[0]
+    current_date = current_comp['completed_date']
+    if isinstance(current_date, str):
+        current_date = datetime.fromisoformat(current_date).date()
+    elif isinstance(current_date, datetime):
+        current_date = current_date.date()
+    
+    expected_date = current_date - timedelta(days=1)
+    
+    for completion in sorted_completions[1:]:
         comp_date = completion['completed_date']
         if isinstance(comp_date, str):
             comp_date = datetime.fromisoformat(comp_date).date()
         elif isinstance(comp_date, datetime):
             comp_date = comp_date.date()
         
-        if comp_date == expected_date or comp_date == expected_date - timedelta(days=1):
+        if comp_date == expected_date:
             streak += 1
             expected_date = comp_date - timedelta(days=1)
         else:

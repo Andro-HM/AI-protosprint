@@ -176,13 +176,13 @@ Provide an encouraging, insightful summary:"""
             return "Unable to generate weekly summary at this time."
     
     async def generate_accountability_message(self, prompt: str) -> str:
-        """Generate ruthless accountability message using GPT-4."""
+        """Generate ruthless accountability message using GPT-4o."""
         try:
             chat = LlmChat(
                 api_key=self.api_key,
                 session_id="accountability_enforcer",
                 system_message="You are The Enforcer, a brutally honest accountability coach."
-            ).with_model("openai", "gpt-4.5-preview")
+            ).with_model("openai", "gpt-4o")
             
             message = UserMessage(text=prompt)
             response = await chat.send_message(message)
