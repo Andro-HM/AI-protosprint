@@ -9,16 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Edit2, Trash2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import { MoodSelector } from '@/components/MoodSelector';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-
-const MOODS = [
-  { value: 'Happy', emoji: '😊', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400' },
-  { value: 'Energized', emoji: '⚡', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400' },
-  { value: 'Neutral', emoji: '😐', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400' },
-  { value: 'Sad', emoji: '😢', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
-  { value: 'Anxious', emoji: '😰', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400' },
-];
 
 export const Journal = () => {
   const [entries, setEntries] = useState([]);
@@ -107,11 +100,7 @@ export const Journal = () => {
 
   const resetForm = () => {
     setEditingEntry(null);
-    setFormData({ content: '', mood: 'Happy' });
-  };
-
-  const getMoodStyle = (mood) => {
-    return MOODS.find(m => m.value === mood) || MOODS[0];
+    setFormData({ content: '', mood: 'Happy 😊' });
   };
 
   if (loading) {
@@ -161,23 +150,11 @@ export const Journal = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <Label>How are you feeling?</Label>
-                  <div className="grid grid-cols-5 gap-2 mt-2">
-                    {MOODS.map((mood) => (
-                      <button
-                        key={mood.value}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, mood: mood.value })}
-                        className={`p-4 rounded-xl border-2 transition-all hover:scale-105 ${
-                          formData.mood === mood.value
-                            ? 'border-emerald-500 ' + mood.color
-                            : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50'
-                        }`}
-                      >
-                        <div className="text-2xl mb-1">{mood.emoji}</div>
-                        <div className="text-xs font-medium">{mood.value}</div>
-                      </button>
-                    ))}
-                  </div>
+                  <MoodSelector
+                    value={formData.mood}
+                    onChange={(mood) => setFormData({ ...formData, mood })}
+                    className="mt-2"
+                  />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -226,7 +203,6 @@ export const Journal = () => {
         {/* Entries List */}
         <div className="space-y-6">
           {entries.map((entry, idx) => {
-            const moodStyle = getMoodStyle(entry.mood);
             const sentimentColors = {
               'Positive': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-emerald-300',
               'Excited': 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-300',
@@ -248,8 +224,8 @@ export const Journal = () => {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex flex-col space-y-2">
                       <div className="flex items-center space-x-3">
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${moodStyle.color}`}>
-                          {moodStyle.emoji} {entry.mood}
+                        <span className="px-3 py-1 rounded-full text-sm font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400">
+                          {entry.mood}
                         </span>
                         {entry.sentiment ? (
                           <span className={`px-3 py-1 rounded-full text-sm font-medium border ${sentimentColors[entry.sentiment] || sentimentColors['Calm']}`}>
