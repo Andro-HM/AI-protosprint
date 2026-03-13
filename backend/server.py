@@ -1391,6 +1391,192 @@ async def get_accountability_stats(user_id: str = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============= INSIGHTS ROUTES =============
+
+@api_router.get("/insights/weekly-summary")
+async def get_weekly_insights(user_id: str = Depends(get_current_user)):
+    """Get comprehensive weekly emotional insights"""
+    try:
+        from datetime import datetime, date, timedelta
+        
+        # Get last 7 days of journal entries
+        seven_days_ago = (date.today() - timedelta(days=7)).isoformat()
+        entries = await db.journal_entries.find({
+            "user_id": user_id,
+            "entry_date": {"$gte": seven_days_ago}
+        }, {"_id": 0}).sort("entry_date", -1).to_list(7)
+        
+        if not entries:
+            return {
+                "success": True,
+                "data": {
+                    "entries": [],
+                    "dominant_mood": None,
+                    "trend": "stable",
+                    "positive_days": 0,
+                    "negative_days": 0,
+                    "mood_counts": {}
+                }
+            }
+        
+        # Extract moods and calculate stats
+        from mood_utils import get_mood_base_name, MOOD_TO_SENTIMENT_VALUE
+        
+        mood_counts = {}
+        sentiment_values = []
+        
+        for entry in entries:
+            mood_name = get_mood_base_name(entry.get('mood', 'Neutral'))
+            mood_counts[mood_name] = mood_counts.get(mood_name, 0) + 1
+            sentiment_values.append(MOOD_TO_SENTIMENT_VALUE.get(mood_name, 3))
+        
+        # Find dominant mood
+        dominant_mood = max(mood_counts.items(), key=lambda x: x[1])[0] if mood_counts else "Neutral"
+        
+        # Calculate trend
+        if len(sentiment_values) >= 4:
+            first_half_avg = sum(sentiment_values[:len(sentiment_values)//2]) / (len(sentiment_values)//2)
+            second_half_avg = sum(sentiment_values[len(sentiment_values)//2:]) / (len(sentiment_values) - len(sentiment_values)//2)
+            
+            if second_half_avg > first_half_avg + 0.5:
+                trend = "improving"
+            elif second_half_avg < first_half_avg - 0.5:
+                trend = "declining"
+            else:
+                trend = "stable"
+        else:
+            trend = "stable"
+        
+        # Count positive vs negative days
+        positive_days = sum(1 for v in sentiment_values if v >= 4)
+        negative_days = sum(1 for v in sentiment_values if v <= 2)
+        
+        return {
+            "success": True,
+            "data": {
+                "entries": entries,
+                "dominant_mood": dominant_mood,
+                "trend": trend,
+                "positive_days": positive_days,
+                "negative_days": negative_days,
+                "neutral_days": len(entries) - positive_days - negative_days,
+                "mood_counts": mood_counts,
+                "week_start": seven_days_ago,
+                "week_end": date.today().isoformat()
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/insights/weekly-summary/generate")
+async def generate_ai_weekly_summary(user_id: str = Depends(get_current_user)):
+    """Generate AI summary of the week"""
+    try:
+        from datetime import datetime, date, timedelta
+        
+        # Get last 7 days
+        seven_days_ago = (date.today() - timedelta(days=7)).isoformat()
+        entries = await db.journal_entries.find({
+            "user_id": user_id,
+            "entry_date": {"$gte": seven_days_ago}
+        }, {"_id": 0}).sort("entry_date", 1).to_list(7)
+        
+        if not entries:
+            return {
+                "success": True,
+                "data": {
+                    "summary": "No journal entries yet this week. Start journaling to see your weekly insights!",
+                    "week_start": seven_days_ago,
+                    "week_end": date.today().isoformat()
+                }
+            }
+        
+        # Format entries for AI
+        formatted_entries = []
+        for entry in entries:
+            entry_date = entry.get('entry_date', '')
+            mood = entry.get('mood', 'Unknown')
+            content = entry.get('content', '')[:300]
+            formatted_entries.append(f"[{entry_date}] Mood: {mood}\n{content}")
+        
+        entries_text = "\n\n".join(formatted_entries)
+        
+        # Call AI
+        prompt = f"""Based on these journal entries from the past week, write a compassionate 2-3 sentence summary of this person's emotional journey. Note any patterns, progress, or areas needing attention.
+
+Entries:
+{entries_text}
+
+Write in second person (You...). Be warm and insightful."""
+        
+        summary_text = await ai_service.generate_weekly_summary(prompt)
+        
+        return {
+            "success": True,
+            "data": {
+                "summary": summary_text,
+                "week_start": seven_days_ago,
+                "week_end": date.today().isoformat(),
+                "generated_at": datetime.utcnow().isoformat()
+            }
+        }
+    except Exception as e:
+        logger.error(f"Failed to generate AI summary: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate summary. Please try again.")
+
+
+@api_router.post("/insights/rating")
+async def save_weekly_rating(rating_data: dict, user_id: str = Depends(get_current_user)):
+    """Save weekly rating"""
+    try:
+        from datetime import datetime
+        import uuid
+        
+        rating_doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "week_start": rating_data.get('week_start'),
+            "week_end": rating_data.get('week_end'),
+            "rating": rating_data.get('rating'),
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        # Check if exists
+        existing = await db.weekly_ratings.find_one({
+            "user_id": user_id,
+            "week_start": rating_data.get('week_start'),
+            "week_end": rating_data.get('week_end')
+        })
+        
+        if existing:
+            await db.weekly_ratings.update_one(
+                {"id": existing['id']},
+                {"$set": {"rating": rating_data.get('rating'), "created_at": datetime.utcnow().isoformat()}}
+            )
+        else:
+            await db.weekly_ratings.insert_one(rating_doc)
+        
+        return {"success": True, "data": rating_doc}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/insights/rating")
+async def get_weekly_rating(week_start: str, week_end: str, user_id: str = Depends(get_current_user)):
+    """Get weekly rating"""
+    try:
+        rating = await db.weekly_ratings.find_one({
+            "user_id": user_id,
+            "week_start": week_start,
+            "week_end": week_end
+        }, {"_id": 0})
+        
+        return {"success": True, "data": rating if rating else None}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
